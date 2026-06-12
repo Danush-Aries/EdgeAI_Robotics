@@ -1,6 +1,6 @@
 #include "nvs_manager.h"
-#include <<stdiostdio.h>
-#include <<stringstring.h>
+#include <stdio.h>
+#include <string.h>
 
 // Mocking NVS for the purpose of the project structure as we are not on actual hardware
 // In real ESP-IDF, this uses nvs_flash_init(), nvs_open(), etc.

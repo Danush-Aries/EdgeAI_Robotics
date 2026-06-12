@@ -1,60 +1,210 @@
-# OpenClaw Robotic System: Edge AI Orchestration
+# OpenClaw
 
-OpenClaw is a production-ready robotic framework demonstrating a **Hardware-Software Co-design** that bridges high-level cognitive reasoning (Cloud Brain) with real-time deterministic execution (ESP32 Firmware).
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)](https://www.python.org/)
+[![C](https://img.shields.io/badge/Firmware-ESP--IDF%20C-green?logo=c)](https://docs.espressif.com/projects/esp-idf/)
+[![MQTT](https://img.shields.io/badge/Transport-MQTT%20%2F%20TLS-orange)](https://mqtt.org/)
 
-## 🚀 System Architecture: The 'Edge AI' Philosophy
+**OpenClaw** is a hybrid Edge AI robotics framework that bridges a Python cloud agent (ReAct-based reasoning loop) to an ESP32 firmware over MQTT/TLS, translating high-level natural-language goals into real-time robotic arm and gripper commands.
 
-Most robotic systems either rely on "dumb" remote control or overly complex on-device models. OpenClaw implements a **Hybrid Reasoning Loop**:
+---
 
-1.  **Cloud Brain (Python/LLM):** Handles complex goal decomposition and high-level planning using a ReAct (Reasoning and Acting) loop. It translates vague user intent ("Pick up the blue block") into a sequence of logical steps.
-2.  **Edge Firmware (C/ESP32):** Does not just execute commands but parses the **thought-action** stream. It manages real-time kinematics, NVS-backed state persistence, and safety constraints, ensuring the robot doesn't execute dangerous moves even if the cloud brain suggests them.
+## What It Does
 
-### 🛠️ Technical Stack
+Most robotic systems either use hardcoded remote control or require heavy on-device models. OpenClaw takes a third path: a **hybrid reasoning architecture**.
 
-- **Firmware:** C (ESP-IDF) on ESP32.
-- **Cloud Orchestrator:** Python 3.11+ with Paho-MQTT.
-- **Communication:** Bidirectional MQTT over TLS via HiveMQ Cloud.
-- **State Management:** NVS (Non-Volatile Storage) for device calibration and ID persistence.
+1. **Cloud Brain (Python)** — receives a natural-language goal such as `"Pick up the blue block"`, decomposes it into a sequence of `Thought → Action` steps via a ReAct loop (optionally powered by Claude), and publishes structured JSON commands over MQTT.
+2. **Edge Firmware (C / ESP32)** — does not blindly execute commands. It parses the thought-action stream, maps actions to tool IDs, enforces physical safety constraints, persists calibration data in NVS flash, and streams telemetry back to the cloud.
 
-## 🧩 Core Engineering Features
+The two layers communicate over **MQTT with TLS** through any standard broker (HiveMQ Cloud, Mosquitto, etc.), achieving sub-100 ms command delivery with QoS 1 guarantees.
 
-### 1. ReAct-Based Reasoning Loop
-The system implements a `Thought -> Action -> Observation` cycle. 
-- The Cloud Brain sends a structured payload: `Thought: [Logical Step] | Action: [Tool Call]`.
-- The ESP32 parses this stream in real-time, allowing for auditability of the robot's "thought process" via telemetry.
+---
 
-### 2. Custom Tool-Dispatching System
-Instead of hardcoded endpoints, OpenClaw uses a tool-dispatching architecture:
-- **Tool IDs:** `TOOL_MOVE_ARM`, `TOOL_GRIPPER`, `TOOL_READ_SENSORS`.
-- **Decoupling:** The brain decides *what* tool to use; the firmware decides *how* to execute it based on current physical constraints.
+## Features
 
-### 3. Robust Connectivity
-Using HiveMQ Cloud, the system achieves sub-100ms latency for command delivery, utilizing QoS 1 to ensure that critical robotic movements are guaranteed to be delivered.
+- **ReAct reasoning loop** — structured `Thought / Action / Observation` cycle with full auditability; every command includes the reasoning text that produced it.
+- **Real LLM integration** — when `ANTHROPIC_API_KEY` is set the brain calls Claude (`claude-3-5-haiku`) to plan arbitrary goals; a built-in rule-based planner handles common goals offline with no API key required.
+- **Single structured command per step** — the firmware receives exactly one JSON payload per action, eliminating the duplicate-message bug present in naive implementations.
+- **Bounds-safe C parser** — the firmware's `process_reasoning_step()` uses bounded `sscanf` format strings and explicit null-termination to prevent buffer overruns.
+- **Telemetry feedback loop** — firmware telemetry is routed back into the brain's state via an `on_telemetry` callback, keeping cloud and edge in sync.
+- **NVS-backed configuration** — device ID, arm position, and gripper state survive power cycles via ESP32's Non-Volatile Storage.
+- **Environment-variable configuration** — no credentials are hardcoded; all connection settings come from environment variables.
+- **Test suite** — 18 Python unit tests (no hardware required) and 30 host-compiled C tests covering parsing, NVS, and buffer safety.
 
-## 📂 Directory Structure
+---
+
+## Project Structure
 
 ```text
 EdgeAI_Robotics/
-├── firmware/
-│   ├── include/       # Headers (Reasoning, NVS Manager)
-│   └── src/           # C Implementation (Main loop, Tool dispatch)
 ├── cloud_agent/
-│   ├── brain.py       # ReAct Planning Engine
-│   └── mqtt_layer.py  # HiveMQ Integration
-└── docs/              # Technical specifications
-```
-
-## ⚙️ Getting Started
-
-### Firmware Deployment
-1. Flash the `firmware/src` using `idf.py build flash`.
-2. Configure your HiveMQ credentials in the firmware header.
-
-### Cloud Brain Execution
-```bash
-pip install paho-mqtt
-python cloud_agent/brain.py
+│   ├── brain.py          # ReAct planning engine + LLM integration
+│   └── mqtt_layer.py     # MQTT/TLS client with telemetry routing
+├── firmware/
+│   ├── CMakeLists.txt    # ESP-IDF project root
+│   ├── sdkconfig.defaults
+│   ├── include/
+│   │   ├── reasoning.h   # ReAct types and tool IDs
+│   │   └── nvs_manager.h # Robot config struct
+│   ├── main/
+│   │   └── CMakeLists.txt  # ESP-IDF component registration
+│   └── src/
+│       ├── main.c          # Firmware entry point
+│       ├── reasoning.c     # Thought-action parser + tool dispatcher
+│       └── nvs_manager.c   # NVS read/write (mock-able for host tests)
+├── tests/
+│   ├── test_brain.py           # Python unit tests (18 tests)
+│   └── test_reasoning_host.c  # C host unit tests (30 tests)
+├── docs/
+│   └── architecture.md   # System topology + message formats
+├── requirements.txt
+└── README.md
 ```
 
 ---
-**Engineered for Precision. Designed for Intelligence.**
+
+## Installation
+
+### Prerequisites
+
+- Python 3.9+
+- An MQTT broker (HiveMQ Cloud free tier, or a local Mosquitto instance)
+- ESP-IDF v5.x (for firmware flashing; not needed for Python-only development)
+
+### Python Cloud Agent
+
+```bash
+# Clone the repository
+git clone https://github.com/your-org/EdgeAI_Robotics.git
+cd EdgeAI_Robotics
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set connection credentials
+export OPENCLAW_BROKER=your-cluster.s1.eu.hivemq.cloud
+export OPENCLAW_PORT=8883
+export OPENCLAW_USERNAME=your-username
+export OPENCLAW_PASSWORD=your-password
+export OPENCLAW_CLIENT_ID=OPENCLAW-001
+
+# Optional: enable real LLM reasoning via Claude
+export ANTHROPIC_API_KEY=sk-ant-...
+
+# Run the brain
+python3 cloud_agent/brain.py
+```
+
+### Firmware (ESP32)
+
+```bash
+# Install ESP-IDF (one-time setup)
+# https://docs.espressif.com/projects/esp-idf/en/stable/esp32/get-started/
+
+cd firmware
+
+# Configure Wi-Fi and MQTT credentials via menuconfig
+idf.py menuconfig
+
+# Build and flash
+idf.py build flash monitor
+```
+
+---
+
+## Usage
+
+### Interactive Mode
+
+```
+Goal > Pick up the blue block
+[INFO] Planning action for goal: Pick up the blue block
+[INFO] [Step 1] Thought: The blue block is at position (10, 20, 5)...
+[INFO] [Step 1] Action : MOVE  Params: {'x': 10, 'y': 20, 'z': 5}
+[INFO] Command sent  topic=openclaw/OPENCLAW-001/commands  command=MOVE
+[INFO] [Step 2] Thought: Arm is now over the block. Closing the gripper...
+[INFO] [Step 2] Action : GRIP  Params: {'state': 'closed'}
+Result: Step 1 (MOVE): dispatched MOVE | Step 2 (GRIP): dispatched GRIP
+```
+
+### Supported Goals (built-in planner)
+
+| Goal phrase | Steps generated |
+|---|---|
+| `pick up the blue block` / `pick up` | MOVE to (10, 20, 5) then GRIP close |
+| `open gripper` | GRIP open |
+| `go home` / `reset` | MOVE to (0, 0, 0) then GRIP open |
+| `read sensor` / `sensor data` | SENSOR read |
+| anything else | STATUS report |
+
+When `ANTHROPIC_API_KEY` is set, any natural-language goal is planned by Claude.
+
+### MQTT Command Format (Cloud to Firmware)
+
+```json
+{
+  "command": "MOVE",
+  "params":  { "x": 10, "y": 20, "z": 5 },
+  "thought": "The blue block is at position (10, 20, 5). I must move the arm there."
+}
+```
+
+### MQTT Telemetry Format (Firmware to Cloud)
+
+```json
+{
+  "arm_pos":     { "x": 10.0, "y": 20.0, "z": 5.0 },
+  "gripper":     "closed",
+  "observation": "move_complete"
+}
+```
+
+---
+
+## Running Tests
+
+### Python tests (no hardware or API key needed)
+
+```bash
+python3 -m pytest tests/test_brain.py -v
+# 18 passed
+```
+
+### C firmware tests (host-compiled, no ESP32 needed)
+
+```bash
+cd tests
+gcc -I../firmware/include \
+    -o test_reasoning \
+    test_reasoning_host.c \
+    ../firmware/src/reasoning.c \
+    ../firmware/src/nvs_manager.c
+./test_reasoning
+# 30 passed, 0 failed
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Cloud Brain | Python 3.9+, Paho-MQTT |
+| LLM Reasoning | Anthropic Claude (optional) |
+| Transport | MQTT over TLS (port 8883) |
+| Broker | HiveMQ Cloud / Mosquitto |
+| Firmware | C, ESP-IDF v5.x |
+| State Storage | ESP32 NVS (Non-Volatile Storage) |
+| Firmware Build | CMake via `idf.py` |
+
+---
+
+## Architecture
+
+See [docs/architecture.md](docs/architecture.md) for a detailed system topology diagram, message format reference, and tool-ID table.
+
+---
+
+## License
+
+This project is licensed under the **MIT License**. See [LICENSE](LICENSE) for details.

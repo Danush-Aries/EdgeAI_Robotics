@@ -1,0 +1,23 @@
+# OpenClaw sdkconfig defaults
+# These are applied on top of the base ESP-IDF defaults when running
+# `idf.py build` for the first time.
+
+# Target chip
+CONFIG_IDF_TARGET="esp32"
+
+# Enable MQTT over TLS
+CONFIG_MQTT_TRANSPORT_SSL=y
+CONFIG_MQTT_TRANSPORT_WEBSOCKET=n
+
+# NVS flash
+CONFIG_NVS_ENCRYPTION=n
+
+# Increase main task stack for JSON parsing
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# Wi-Fi
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=10
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32
+
+# Logging
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
