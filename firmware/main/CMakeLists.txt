@@ -1,0 +1,14 @@
+idf_component_register(
+    SRCS
+        "../src/main.c"
+        "../src/reasoning.c"
+        "../src/nvs_manager.c"
+    INCLUDE_DIRS
+        "../include"
+    REQUIRES
+        nvs_flash
+        mqtt
+        esp_wifi
+        esp_event
+        esp_netif
+)

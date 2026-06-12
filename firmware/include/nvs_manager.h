@@ -1,8 +1,8 @@
 #ifndef OPENCLAW_NVS_H
 #define OPENCLAW_NVS_H
 
-#include <<stdintstdint.h>
-#include <<ststdbool.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 typedef struct {
     float arm_pos_x;

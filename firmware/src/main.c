@@ -1,4 +1,4 @@
-#include <<stdiostdio.h>
+#include <stdio.h>
 #include "reasoning.h"
 #include "nvs_manager.h"
 

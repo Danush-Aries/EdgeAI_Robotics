@@ -1,8 +1,8 @@
 #ifndef OPENCLAW_REASONING_H
 #define OPENCLAW_REASONING_H
 
-#include <<stdintstdint.h>
-#include <<ststdbool.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 typedef enum {
     TOOL_MOVE_ARM,
