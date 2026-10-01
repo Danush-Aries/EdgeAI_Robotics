@@ -1,8 +1,6 @@
-# OpenClaw
+# OpenClaw (EdgeAI_Robotics)
 
 **Natural-language goal in. Real robot arm motion out.**
-
-<!-- hero: 1600x600 photo of the ESP32-driven arm rig executing a pick-up-block goal -->
 
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 ![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)
@@ -10,7 +8,7 @@
 ![MQTT](https://img.shields.io/badge/Transport-MQTT%20%2F%20TLS-660066)
 ![Claude](https://img.shields.io/badge/Reasoning-Claude-D97757?logo=anthropic&logoColor=white)
 
-OpenClaw is a hybrid Edge AI robotics stack. A Python cloud brain runs a ReAct loop that turns natural-language goals into structured actions; an ESP32 firmware in C receives them over MQTT/TLS, enforces safety limits, and drives the servos. Sub-100ms command delivery, no heavy on-device models required.
+OpenClaw is a hybrid Edge AI robotics stack. A Python cloud brain runs a ReAct loop that turns natural-language goals into structured actions; an ESP32 firmware in C receives them over MQTT/TLS, enforces safety limits, and drives the servos. No heavy on-device models required.
 
 ---
 
@@ -23,21 +21,33 @@ Most hobbyist robotics is either dumb (hard-coded remote control) or over-engine
 ## Try it in 60 seconds
 
 ```bash
-# Cloud brain
 git clone https://github.com/Danush-Aries/EdgeAI_Robotics
 cd EdgeAI_Robotics
 pip install -r requirements.txt
 
+# MQTT broker settings (e.g. a HiveMQ Cloud cluster; TLS on 8883)
+export OPENCLAW_BROKER=your-cluster.s1.eu.hivemq.cloud
+export OPENCLAW_USERNAME=...   OPENCLAW_PASSWORD=...
+
 # Optional: use Claude for planning
-export ANTHROPIC_API_KEY=sk-ant-...
+export ANTHROPIC_API_KEY=...
 
-python -m cloud_agent.brain --goal "Pick up the blue block"
+# Interactive prompt; type a goal such as "Pick up the blue block"
+cd cloud_agent && python brain.py
 
-# Firmware (separate machine)
-cd firmware && idf.py -p /dev/ttyUSB0 flash monitor
+# Firmware (ESP-IDF toolchain required)
+cd ../firmware && idf.py -p /dev/ttyUSB0 flash monitor
 ```
 
-No Anthropic key? A built-in rule-based planner handles the common goals offline.
+No Anthropic key? A built-in rule-based planner handles a small vocabulary of goals (pick up, open gripper, home/reset, read sensor) offline. An MQTT broker is still required to publish commands.
+
+Tests:
+
+```bash
+python -m pytest tests/test_brain.py -v
+# firmware parser, host-side (no ESP32 needed)
+cd tests && gcc -I../firmware/include -o test_reasoning test_reasoning_host.c ../firmware/src/reasoning.c ../firmware/src/nvs_manager.c && ./test_reasoning
+```
 
 ---
 
@@ -57,11 +67,9 @@ No Anthropic key? A built-in rule-based planner handles the common goals offline
                   v
                 Edge (ESP32 / C)
 +-----------------------------------------------+
-|  bounded sscanf JSON parser                   |
-|  tool ID dispatcher                           |
-|  physical bounds enforcement                  |
-|  NVS: persist calibration + last position     |
-|  telemetry publisher                          |
+|  bounded sscanf ReAct step parser             |
+|  tool dispatcher                              |
+|  NVS config store                             |
 +-----------------------------------------------+
                   |
                   v
@@ -69,14 +77,6 @@ No Anthropic key? A built-in rule-based planner handles the common goals offline
 ```
 
 Every command includes the reasoning text that produced it — full auditability from LLM decision to physical motion.
-
----
-
-## Screenshots
-
-<!-- screenshot: react-loop.png -->
-<!-- screenshot: telemetry-dashboard.png -->
-<!-- photo: hardware-rig.jpg -->
 
 ---
 
@@ -88,7 +88,7 @@ Every command includes the reasoning text that produced it — full auditability
 | LLM (optional) | Claude 3.5 Haiku via Anthropic API |
 | Transport | MQTT with TLS (HiveMQ / Mosquitto) |
 | Firmware | ESP-IDF C on ESP32 |
-| Persistence | ESP32 NVS (calibration, arm state) |
+| Persistence | ESP32 NVS (config store) |
 | Tests | pytest for brain, unit tests for parser |
 
 ---
@@ -108,4 +108,4 @@ Built by [Dhanush](https://github.com/Danush-Aries) — AI engineering + cyberse
 
 ## License
 
-MIT.
+MIT — see [LICENSE](LICENSE).
